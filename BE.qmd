@@ -13,6 +13,9 @@ number-depth: 2
 editor_options: 
   chunk_output_type: console
 ---
+```{r, eval=TRUE}
+set.seed(42)
+```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -135,7 +138,7 @@ This is the bias-variance tradeoff.
 In the plot above, we show that $h = 1$ doesn't capture any detail because the bandwidth equals the whole x range.
 On the other hand, $h = 0.01$ captures a lot more details of the points and tends to overfit the estimation. You can see below $h = 0.001$ largely overfits to the data because the density estimation is done on each point capturing all details.
 
-:::
+
 
 ```{r}
 ## code to answer
@@ -150,7 +153,7 @@ for (kk in 1:length(bwd)) {
 lgd <- paste0("h = ", bwd)
 legend("bottom", lgd, col = 2:4, lty = 1)
 ```
-
+:::
 ## Leave-one-out cross-validation, take 1
 
 Let $\hat{f}_{h}$ be a generic non-parametric estimator of $f$ built from the sample $Y = (Y_1, \dots, Y_n)$. 
@@ -207,10 +210,10 @@ Use the function `LOOCV` to plot the LOO risk as a function of the bandwidth. Wh
 ```{r, eval=TRUE}
 bandwidths <- seq(from = 0.005, to = 0.1, by = 0.005)
 res <- LOOCV(X, Y, bandwidths)
-plot(bandwidths, res, t= 'b', ylab = "LOO Risk", xlab = "bandwidth")
+plot(bandwidths, res, t= 'b', ylab = "LOO Risk", xlab = "Bandwidth")
 ```
 :::
-Based on the graph above we see that the optimal bandwidth is $0.015$ because it is the value that minimizes LOO risk.
+Based on the graph above we see that the optimal bandwidth is $\approx 0.015$ because it is the value that minimizes LOO risk.
 
 
 ```{r, echo=FALSE}
@@ -231,17 +234,16 @@ dichotomy_search_LOOCV <- function(X, Y, lower = 0.005, upper = 0.1, tol = 1e-4,
   while ((upper - lower) > tol && iter < max_iter) {
     iter <- iter + 1
     
-    # Milieu et points intermédiaires
     mid <- (lower + upper) / 2
     left <- (lower + mid) / 2
     right <- (mid + upper) / 2
     
-    # Évaluer le risque LOO aux trois points
+    # Evaluate LOO risk
     risk_left <- LOOCV(X, Y, bandwidths = left)
     risk_mid  <- LOOCV(X, Y, bandwidths = mid)
     risk_right <- LOOCV(X, Y, bandwidths = right)
     
-    # Mise à jour des bornes selon la forme de la courbe
+    # Update values depending on curve
     if (risk_left < risk_mid) {
       upper <- mid
     } else if (risk_right < risk_mid) {
@@ -252,19 +254,19 @@ dichotomy_search_LOOCV <- function(X, Y, lower = 0.005, upper = 0.1, tol = 1e-4,
     }
   }
   
-  # Bandwidth optimal estimé
+  # Optimal bandwidth
   return((lower + upper) / 2)
 }
 
 optimal_bw <- dichotomy_search_LOOCV(X, Y)
 cat("Optimal bandwidth:", optimal_bw, "\n")
 
-# Visualisation
-bandwidths <- seq(from = 0.005, to = 0.1, by = 0.005)
+# Visualization
 res <- LOOCV(X, Y, bandwidths)
 plot(bandwidths, res, type = 'b', ylab = "LOO Risk", xlab = "Bandwidth")
 abline(v = optimal_bw, col = "red", lty = 2)
 ```
+We see that we obtain the same result as the one estimated before on the graph.
 :::
 
 
@@ -277,16 +279,16 @@ QQ <- QQ + 1
 ### Question `r QQ`
 Plot the running time of `LOOCV` as a function of $n$. What it its time complexity? Can this estimator be run on large sample sizes, ie for $n \gg 1000$ ?
 ```{r, eval=TRUE}
-n_values <- seq(from = 50, to = 2000, by = 50) 
+n_values <- seq(from = 100, to = 2000, by = 100) 
 
 times <- sapply(n_values, function(n) {
   X <- 1:n/n
   Y <- sim_Y(X)
-  system.time(LOOCV(X, Y, 0.015))["elapsed"]
+  system.time(LOOCV(X, Y, optimal_bw))["elapsed"]
 })
 plot(n_values, times, t="b", xlab="Sample size (n)", ylab="Time (s)")
 ```
-The time complexity of the LOOCV function looks polynomial. We won't be able to tu use this estimator on large sample sizes.
+The time complexity of the LOOCV function looks polynomial. We won't be able to tu use this estimator on large sample sizes. We are confronted here by the curse of dimensionality seen in class.
 :::
 ## LOOCV, take 2
 
@@ -308,6 +310,7 @@ Write a function `LOOCV2` *not based on `locpoly`* to estimate the LOO cross-val
 gaussian_kernel <- function(u) {
   exp(-0.5 * u^2) / sqrt(2 * pi)
 }
+
 
 # Fast LOOCV using NW definition
 LOOCV2 <- function(X, Y, bandwidths) {
@@ -334,7 +337,6 @@ LOOCV2 <- function(X, Y, bandwidths) {
   return(MSE_LOO)
 }
 
-bandwidths <- seq(0.005, 0.1, by = 0.005)
 res1 <- LOOCV(X, Y, bandwidths)
 res2 <- LOOCV2(X, Y, bandwidths)
 
@@ -345,6 +347,7 @@ lines(bandwidths, res2, type = "b", col = "red", pch = 19)
 legend("topright", legend = c("LOOCV1 (locpoly)", "LOOCV2 (fast)"),
        col = c("blue", "red"), lty = 1, pch = c(1, 19))
 ```
+We observe almost identical plots for the 2 implementations. Since the optimal bandwidth is not affected by the minor differences in LOO Risk between the 2 curves, we can conclude that our implementation is correct.
 :::
 
 ```{r, echo=FALSE}
@@ -359,21 +362,18 @@ Plot the running time of `LOOCV` and `LOOCV2` as a function of $n$. Can `LOOCV2`
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
 ```{r, eval=TRUE}
-
-n_values <- seq(from = 50, to = 2000, by = 50)
-
 # Time measure for LOOCV (locpoly)
 times_LOOCV <- sapply(n_values, function(n) {
   X <- 1:n/n
   Y <- sim_Y(X)
-  system.time(LOOCV(X, Y, 0.015))["elapsed"]
+  system.time(LOOCV(X, Y, optimal_bw))["elapsed"]
 })
 
 # Time measure for LOOCV2 (fast version)
 times_LOOCV2 <- sapply(n_values, function(n) {
   X <- 1:n/n
   Y <- sim_Y(X)
-  system.time(LOOCV2(X, Y, 0.015))["elapsed"]
+  system.time(LOOCV2(X, Y, optimal_bw))["elapsed"]
 })
 
 # Comparative plot
@@ -385,7 +385,8 @@ legend("topleft", legend = c("LOOCV (locpoly)", "LOOCV2 (fast)"),
        col = c("red", "blue"), lwd = 2)
 ```
 :::
-The time complexity of LOOCV2 is better than LOOCV1. Its time complexity looks linear making it suitable for large values of $n$.
+Based on the previous question, we confirmed that the 2 implementations yield the same results. Therefore their time complexity can be compared.
+The time complexity of LOOCV2 is better than LOOCV1. Its time complexity looks linear compared to LOOCV1 making it more suitable for large values of $n$.
 
 ## LOOCV, take 3
 
@@ -552,14 +553,12 @@ LOOCV3 <- function(X, Y, bandwidths) {
   return(MSE_LOO)
 }
 
-bandwidths <- seq(0.005, 0.1, by = 0.005)
-
 # Compute LOO risks
-res1 <- LOOCV(X, Y, bandwidths)     # locpoly-based
-res2 <- LOOCV2(X, Y, bandwidths)    # kernel-based
-res3 <- LOOCV3(X, Y, bandwidths)    # weight-based
+res1 <- LOOCV(X, Y, bandwidths)     
+res2 <- LOOCV2(X, Y, bandwidths)    
+res3 <- LOOCV3(X, Y, bandwidths)    
 
-# Plot all three with type 'b'
+# Plot
 plot(bandwidths, res1, type = "b", col = "blue", ylim = range(c(res1, res2, res3)),
      ylab = "LOO Risk", xlab = "Bandwidth", main = "LOOCV1 vs LOOCV2 vs LOOCV3")
 
@@ -570,7 +569,7 @@ legend("topright",
        legend = c("LOOCV1 (locpoly)", "LOOCV2 (kernel)", "LOOCV3 (weights)"),
        col = c("blue", "red", "darkgreen"), lty = 1, pch = c(1, 17, 19))
 ```
-We notice that the NW estimation provides the same result as the LP1 estimation for a given bandwidth. We can therefore analyse if the LP1 estimation is computationally more efficient in the next part.
+The graph indicates that the three implementations yield similar results. LOOCV2 and LOOCV3 match perfectly. However, a small discrepancy remains with the LOOCV1 implementation. Since this difference is minimal and does not affect the value of the optimal bandwidth, we consider the three implementations equivalent in terms of accuracy. Therefore, we can focus on comparing their computational efficiency
 :::
 
 ```{r, echo=FALSE}
@@ -588,44 +587,39 @@ Plot the running time of `LOOCV` and `LOOCV2` as a function of $n$. Can `LOOCV2`
 ### Answer `r QQ`
 
 ```{r, eval=TRUE}
-n_values <- seq(from = 50, to = 2000, by = 50)
-
-# Simulate Y from a smooth function with noise
-sim_Y <- function(X) {
-  sin(2 * pi * X) + rnorm(length(X), sd = 0.2)
-}
-
 # Time measure for LOOCV (locpoly)
 times_LOOCV <- sapply(n_values, function(n) {
   X <- 1:n / n
   Y <- sim_Y(X)
-  system.time(LOOCV(X, Y, 0.015))["elapsed"]
+  system.time(LOOCV(X, Y, optimal_bw))["elapsed"]
 })
 
 # Time measure for LOOCV2 (fast kernel-based)
 times_LOOCV2 <- sapply(n_values, function(n) {
   X <- 1:n / n
   Y <- sim_Y(X)
-  system.time(LOOCV2(X, Y, 0.015))["elapsed"]
+  system.time(LOOCV2(X, Y, optimal_bw))["elapsed"]
 })
 
 # Time measure for LOOCV3 (weight-based using Equation 2)
 times_LOOCV3 <- sapply(n_values, function(n) {
   X <- 1:n / n
   Y <- sim_Y(X)
-  system.time(LOOCV3(X, Y, 0.015))["elapsed"]
+  system.time(LOOCV3(X, Y, optimal_bw))["elapsed"]
 })
 
 # Comparative plot
 plot(n_values, times_LOOCV, type = "b", col = "red", lwd = 2,
      xlab = "Sample size (n)", ylab = "Time (s)",
-     main = "Runtime Comparison: LOOCV vs LOOCV2 vs LOOCV3")
+     main = "Run time LOOCV1 vs LOOCV2 vs LOOCV3")
 lines(n_values, times_LOOCV2, col = "blue", lwd = 2, type="b")
 lines(n_values, times_LOOCV3, col = "darkgreen", lwd = 2, type="b")
 legend("topleft", legend = c("LOOCV (locpoly)", "LOOCV2 (kernel)", "LOOCV3 (weights)"),
        col = c("red", "blue", "darkgreen"), lwd = 2)
 ```
 :::
+We observe that LOOCV3 is a bit better than LOOCV1 however, both appear to follow the same polynomial trend. It is clear from the plot that the LOOCV2 implementation performs best for large values of $n$.
+
 
 # Local polynomial estimators of order 1
 
@@ -645,11 +639,10 @@ Plot the NW estimator obtained by LOOCV. Can you explain why it does not work un
 
 
 ```{r, show=TRUE}
-best_bw <- 0.015 ## use results of LOOCV to set optimal bandwidth here
-fit_NW_result <- fit_NW(X, Y, bandwidth = best_bw)
+fit_NW_result <- fit_NW(X, Y, optimal_bw)
 
 # LP1 estimator (local polynomial of degree 1)
-fit_LP1 <- locpoly(X, Y, degree = 1, bandwidth = 0.05, gridsize = length(X))
+fit_LP1 <- locpoly(X, Y, degree = 1, bandwidth=optimal_bw, gridsize = length(X))
 
 # Plot data and both estimators
 plot(X, Y, main = "NW vs LP1 Estimator", xlab = "X", ylab = "Y", pch = 1, col="green")
@@ -660,6 +653,9 @@ lines(fit_LP1, col = "red", lwd = 2)
 legend("bottom", legend = c("Data points", "NW estimation", "LP1 estimation"),
        col = c("green", "blue", "red"), lty = c(NA, 1, 1), pch = c(1, NA, NA))
 ```
+The Nadaraya-Watson (NW) estimator obtained using the optimal bandwidth from LOOCV fits the data well across most of the domain. However, it does not perform uniformly well for all values of $x$. In particular, near the boundaries (extreme values of x), the NW estimator tends to show increased bias. This is because it is a local constant estimator: it averages nearby values without accounting for local trends or slopes.
+
+In contrast, the local polynomial estimator of order 1 (LP1) fits a local linear model, which allows it to extrapolate more effectively near boundaries and adapt to local slopes. As seen in the graph, LP1 and NW produce nearly identical fits in the central region, but LP1 performs slightly better at the extremes, where NW tends to flatten or overshoot.
 
 :::
 
@@ -679,7 +675,44 @@ Write a function `LOOCV_LP1` based on `locpoly` to estimate the LOO cross-valida
 
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
+```{r, show=TRUE}
+LOOCV_LP1 <- function(X, Y, bandwidths) {
+  n <- length(X)
+  MSE_LOO <- numeric(length(bandwidths))
+  
+  for (b in seq_along(bandwidths)) {
+    bandwidth <- bandwidths[b]
+    fit1 <- rep(NA, n)
+    
+    for (i in 1:n) {
+      # Leave-one-out data
+      X_loo <- X[-i]
+      Y_loo <- Y[-i]
+      
+      # Fit LP1 estimator on reduced data
+      fit <- locpoly(X_loo, Y_loo, degree = 1, bandwidth = bandwidth, gridsize = n)
+      
+      idx <- which.min(abs(fit$x - X[i]))
+      fit1[i] <- fit$y[idx]
+    }
+    
+    MSE_LOO[b] <- mean((fit1 - Y)^2, na.rm = TRUE)
+  }
+  
+  return(MSE_LOO)
+}
 
+res_lp1 <- LOOCV_LP1(X, Y, bandwidths)
+
+# Compare with NW-based LOOCV
+res_nw <- LOOCV(X, Y, bandwidths)
+
+plot(bandwidths, res_nw, type = "b", col = "blue", ylim = range(c(res_nw, res_lp1)),
+     ylab = "LOO Risk", xlab = "Bandwidth", main = "LOOCV: NW vs LP1")
+lines(bandwidths, res_lp1, type = "b", col = "red", pch = 17)
+legend("topright", legend = c("NW (degree 0)", "LP1 (degree 1)"),
+       col = c("blue", "red"), lty = 1, pch = c(1, 17))
+```
 :::
 
 ## LOOCV, take 2
@@ -708,15 +741,196 @@ $$
 QQ <- QQ + 1
 ```
 
+::: {.callout-note collapse="false"}
+### Answer `r QQ`
+#### Proof of the LP1 Estimator Formula
+
+We aim to derive the expression for the local polynomial estimator of degree 1 (LP1) at a point $x$, using kernel-weighted least squares.
+
+We fit a local linear model of the form:
+
+$$
+f(z) \approx a_0 + a_1(z - x)
+$$
+
+by minimizing the weighted sum of squares:
+
+$$
+\sum_{i=1}^n \left( y_i - a_0 - a_1(x_i - x) \right)^2 K\left( \frac{x_i - x}{h} \right)
+$$
+
+This is a weighted least squares problem with design matrix:
+
+$$
+X = \begin{bmatrix}
+1 & x_1 - x \\
+1 & x_2 - x \\
+\vdots & \vdots \\
+1 & x_n - x
+\end{bmatrix}, \quad
+W = \text{diag}\left( K\left( \frac{x_1 - x}{h} \right), \dots, K\left( \frac{x_n - x}{h} \right) \right), \quad
+Y = \begin{bmatrix}
+y_1 \\ y_2 \\ \vdots \\ y_n
+\end{bmatrix}
+$$
+
+The weighted least squares solution is:
+
+$$
+\hat{\beta} = (X^\top W X)^{-1} X^\top W Y
+$$
+
+Let us define the following weighted sums:
+
+$$
+S_k(x) = \sum_{i=1}^n (x_i - x)^k K\left( \frac{x_i - x}{h} \right), \quad
+S_k'(x) = \sum_{i=1}^n (x_i - x)^k y_i K\left( \frac{x_i - x}{h} \right)
+$$
+
+Then:
+
+$$
+X^\top W X =
+\begin{bmatrix}
+S_0(x) & S_1(x) \\
+S_1(x) & S_2(x)
+\end{bmatrix}, \quad
+X^\top W Y =
+\begin{bmatrix}
+S_0'(x) \\
+S_1'(x)
+\end{bmatrix}
+$$
+
+Using the formula for the inverse of a $2 \times 2$ matrix:
+
+$$
+(X^\top W X)^{-1} =
+\frac{1}{S_0(x)S_2(x) - S_1(x)^2}
+\begin{bmatrix}
+S_2(x) & -S_1(x) \\
+-S_1(x) & S_0(x)
+\end{bmatrix}
+$$
+
+Multiplying out:
+
+$$
+\hat{\beta} =
+\frac{1}{S_0 S_2 - S_1^2}
+\begin{bmatrix}
+S_2 & -S_1 \\
+-S_1 & S_0
+\end{bmatrix}
+\begin{bmatrix}
+S_0' \\
+S_1'
+\end{bmatrix}
+=
+\frac{1}{S_0 S_2 - S_1^2}
+\begin{bmatrix}
+S_2 S_0' - S_1 S_1' \\
+\cdots
+\end{bmatrix}
+$$
+
+The LP1 estimator at $x$ is the intercept $\hat{f}^{LP1}(x) = \hat{\beta}_0$, so:
+
+$$
+\hat{f}^{LP1}(x) = \frac{S_2(x) S_0'(x) - S_1(x) S_1'(x)}{S_2(x) S_0(x) - S_1(x)^2}
+$$
+:::
+
 ::: {.callout-important collapse="false"}
 ### Question `r QQ`
 Using @eq-LP1, write a function `LOOCV2_LP1` based on `locpoly` to estimate the LOO cross-validation risk of the LP1 estimator. Check that it produces the same results as `LOOCV_LP1` and compare their speed.  
 :::
 
-
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
 
+```{r, show=TRUE}
+
+# LOOCV2_LP1 function
+LOOCV2_LP1 <- function(X, Y, bandwidths) {
+  n <- length(X)
+  MSE_LOO <- numeric(length(bandwidths))
+  
+  for (b in seq_along(bandwidths)) {
+    h <- bandwidths[b]
+    
+    # Precompute all kernel weights
+    Kmat <- outer(X, X, function(xi, xj) dnorm((xj - xi) / h))
+    
+    # Compute weighted sums S_k(x) and S_k'(x)
+    S0 <- rowSums(Kmat)
+    S1 <- rowSums((X - rep(X, each = n)) * Kmat)
+    S2 <- rowSums((X - rep(X, each = n))^2 * Kmat)
+    
+    S0p <- rowSums(Kmat * matrix(Y, n, n, byrow = TRUE))
+    S1p <- rowSums((X - rep(X, each = n)) * Kmat * matrix(Y, n, n, byrow = TRUE))
+    
+    # Compute fitted values using LP1 formula
+    denom <- S2 * S0 - S1^2
+    f_hat <- (S2 * S0p - S1 * S1p) / denom
+    
+    # Compute diagonal weights W_ii for correction
+    W_diag <- dnorm(0) / S0
+    
+    # Apply LOO correction
+    residuals <- (Y - f_hat) / (1 - W_diag)
+    MSE_LOO[b] <- mean(residuals^2)
+  }
+  
+  return(MSE_LOO)
+}
+
+# LOO Risk plot
+res_lp1_slow <- LOOCV_LP1(X, Y, bandwidths)
+res_lp1_fast <- LOOCV2_LP1(X, Y, bandwidths)
+
+
+plot(bandwidths, res_lp1_slow, type = "b", col = "blue", ylim = range(c(res_lp1_slow, res_lp1_fast)),
+     ylab = "LOO Risk", xlab = "Bandwidth", main = "LOOCV_LP1 vs LOOCV2_LP1")
+lines(bandwidths, res_lp1_fast, type = "b", col = "darkgreen", pch = 19)
+legend("topright", legend = c("LOOCV_LP1 (locpoly)", "LOOCV2_LP1 (equation (3))"),
+       col = c("blue", "darkgreen"), lty = 1, pch = c(1, 19))
+
+
+```
+The 2 implementations show really close LOO Risk curves. This confirms that the 2 implementations provide similar results. We can therefore compare their time complexity.
+
+```{r, show=TRUE}
+
+# Optimal bandwidth value based on the graph
+optimal_bw_L1 <- which.min(res_lp1_slow)
+cat("Optimal bandwidth for LOOCV1_LP1:", optimal_bw_L1, "\n")
+
+# Runtime comparison
+# Measure time for LOOCV_LP1
+times_lp1_slow <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+# Measure time for LOOCV2_LP1
+times_lp1_fast <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV2_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+# Plot runtime comparison
+plot(n_values, times_lp1_slow, type = "b", col = "blue", lwd = 2,
+     xlab = "Sample size (n)", ylab = "Time (s)",
+     main = "Runtime: LOOCV_LP1 vs LOOCV2_LP1")
+lines(n_values, times_lp1_fast, type = "b", col = "darkgreen", lwd = 2, pch = 19)
+legend("topleft", legend = c("LOOCV_LP1 (locpoly)", "LOOCV2_LP1 (equation (3))"),
+       col = c("blue", "darkgreen"), lwd = 2, pch = c(1, 19))
+
+```
+We can see from this runtime comparison that LOOCV1_LP1 is indeed slower than LOOCV2_LP2. The implementation based on @eq-LP1 is better.
 :::
 
 ## LOOCV, take 3
@@ -751,6 +965,24 @@ Explain why the above code does indeed calculate the weights $W$.
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
 :::
+The function `getW` computes the weight matrix $W = (W_{ni}(X_j))_{i,j}$ for the local polynomial estimator by exploiting its linearity in the response vector $Y$.
+
+Since local polynomial estimators are linear nonparametric estimators, the fitted value at point $X_j$ can be written as:
+
+$$
+\hat{f}(X_j) = \sum_{i=1}^n W_{ni}(X_j) \, y_i
+$$
+
+To extract the weights $W_{ni}(X_j)$, we evaluate the estimator at each $X_j$ using a vector $Y_i$ that is zero everywhere except at position $i$, where it equals 1. This isolates the contribution of $y_i$ to the fitted value at each location.
+
+In the code:
+
+- For each $i = 1, \dots, n$, we construct a vector $Y_i$ with a 1 at position $i$ and 0 elsewhere.
+- We then apply `locpoly(X, Y_i, ...)`, which returns the fitted values at all grid points (here chosen to match $X$).
+- The resulting vector `fit$y` contains the weights $W_{ni}(X_j)$ for fixed $i$ and varying $j$.
+- By repeating this for all $i$, we fill the matrix $W$ row by row.
+
+Thus, `W[ii, j]` stores the weight assigned to $y_{ii}$ when estimating $\hat{f}(X_j)$, which matches the definition of $W_{ni}(X_j)$.
 
 
 ```{r, echo=FALSE}
@@ -764,12 +996,45 @@ Write a function `LOOCV2_LP1` to estimate the LOO cross-validation risk for a lo
   
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
-```{r, eval=FALSE}
-LOOCV2_LP1 <- function(h, ...) {
-  # TODO
+```{r, eval=TRUE}
+LOOCV3_LP1 <- function(X, Y, bandwidths) {
+  n <- length(X)
+  MSE_LOO <- numeric(length(bandwidths))
+  
+  for (b in seq_along(bandwidths)) {
+    h <- bandwidths[b]
+    
+    # Get weight matrix: W[i, j] = W_{ni}(X_j)
+    W <- getW(X, h)
+    
+    # Each column j gives weights for X_j → transpose to align with Y
+    f_hat <- t(W) %*% Y
+    
+    # Diagonal weights W_ii = contribution of y_i to f(X_i)
+    W_diag <- diag(t(W))
+    
+    # LOO correction
+    residuals <- (Y - f_hat) / (1 - W_diag)
+    MSE_LOO[b] <- mean(residuals^2)
+  }
+  
+  return(MSE_LOO)
 }
-```
 
+# Compute LOO risks
+res1 <- LOOCV_LP1(X, Y, bandwidths)      
+res2 <- LOOCV2_LP1(X, Y, bandwidths)     
+res3 <- LOOCV3_LP1(X, Y, bandwidths)    
+
+# Plot comparison
+plot(bandwidths, res1, type = "b", col = "blue", ylim = range(c(res1, res2, res3)),
+     ylab = "LOO Risk", xlab = "Bandwidth", main = "LOO Risk: LP1 Estimators")
+lines(bandwidths, res2, type = "b", col = "red", pch = 17)
+lines(bandwidths, res3, type = "b", col = "darkgreen", pch = 19)
+legend("topright", legend = c("LOOCV1_LP1 (locpoly)", "LOOCV2_LP1 (equation (3))", "LOOCV3_LP1 (getW)"),
+       col = c("blue", "red", "darkgreen"), lty = 1, pch = c(1, 17, 19))
+```
+Our 3 implementations yield the same results. We can compare their time complexity.
 :::
 
 ```{r, echo=FALSE}
@@ -785,6 +1050,41 @@ What is the time complexity of this computation as a function of $n$? Compare nu
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
 
+```{r, eval=TRUE}
+
+# Runtime comparison
+# Measure time for LOOCV_LP1
+times_lp1_1 <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+# Measure time for LOOCV2_LP1
+times_lp1_2 <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV2_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+# Measure time for LOOCV3_LP1
+times_lp1_3 <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV3_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+
+# Plot runtime comparison
+plot(n_values, times_lp1_1, type = "b", col = "blue", lwd = 2,
+     xlab = "Sample size (n)", ylab = "Time (s)",
+     main = "Runtime: LOOCV_LP1 vs LOOCV2_LP1 vs LOOCV3_LP1")
+lines(n_values, times_lp1_2, type = "b", col = "red", lwd = 2, pch = 17)
+lines(n_values, times_lp1_3, type = "b", col = "darkgreen", lwd = 2, pch = 19)
+legend("topleft", legend = c("LOOCV_LP1 (locpoly)", "LOOCV2_LP1 (equation (3))", "LOOCV3_LP1 (getW)"),
+       col = c("blue", "red", "darkgreen"), lwd = 2, pch = c(1, 17, 19))
+```
+Similar to our previous findings with the NW estimator, the second implementation — based on a reformulation of the original LOO equation for the LP1 estimator — proves to be the most effective. The LOOCV2_LP1 method has better computational efficiency.
 :::
 
 ## K-fold cross-validation
@@ -796,6 +1096,18 @@ Give a formula for the K-fold cross-validation estimator of the MISE.
   
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
+The $K$-fold cross-validation estimator of the Mean Integrated Squared Error (MISE) is given by:
+
+$$
+\widehat{\text{MISE}}_{\text{CV}}(h) = \frac{1}{K} \sum_{k=1}^K \frac{1}{|I_k|} \sum_{i \in I_k} \left( y_i - \hat{f}_h^{(-k)}(x_i) \right)^2
+$$
+
+where:
+- $I_1, \dots, I_K$ form a partition of $\{1, \dots, n\}$ into $K$ disjoint folds,
+- $\hat{f}_h^{(-k)}$ is the estimator trained without the $k$-th fold,
+- and $|I_k|$ is the number of observations in fold $k$.
+
+This estimator approximates the MISE by averaging the squared prediction errors on held-out data across all folds.
 
 :::
 
@@ -811,7 +1123,92 @@ Implement this formula and compare numerically the results to those obtained by 
   
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
+```{r, eval=TRUE}
 
+KFoldCV_LP1 <- function(X, Y, bandwidths, K = 5) {
+  n <- length(X)
+  folds <- split(sample(1:n), rep(1:K, length.out = n))
+  MSE_KCV <- numeric(length(bandwidths))
+  
+  for (b in seq_along(bandwidths)) {
+    h <- bandwidths[b]
+    mse_fold <- numeric(K)
+    
+    for (k in 1:K) {
+      idx_val <- folds[[k]]
+      idx_train <- setdiff(1:n, idx_val)
+      
+      X_train <- X[idx_train]
+      Y_train <- Y[idx_train]
+      
+      # Fit LP1 on training set
+      fit <- locpoly(X_train, Y_train, degree = 1, bandwidth = h, gridsize = 100, range.x = range(X[idx_val]))
+      
+      # Interpolate predictions at validation points
+      preds <- approx(fit$x, fit$y, xout = X[idx_val], rule = 2)$y
+      
+      mse_fold[k] <- mean((Y[idx_val] - preds)^2)
+    }
+    
+    MSE_KCV[b] <- mean(mse_fold)
+  }
+  
+  return(MSE_KCV)
+}
+
+# LOO Risk plot
+risk_loocv1 <- LOOCV_LP1(X, Y, bandwidths)
+risk_loocv2 <- LOOCV2_LP1(X, Y, bandwidths)
+risk_kcv <- KFoldCV_LP1(X, Y, bandwidths, K = 5)
+
+
+
+# Plot comparison
+plot(bandwidths, risk_loocv1, type = "b", col = "blue", ylim = range(c(risk_loocv1, risk_loocv2, risk_kcv)),
+     ylab = "CV Risk", xlab = "Bandwidth", main = "LOOCV vs K-Fold CV (LP1)")
+lines(bandwidths, risk_loocv2, type = "b", col = "red", pch = 17)
+lines(bandwidths, risk_kcv, type = "b", col = "darkgreen", pch = 19)
+legend("topright", legend = c("LOOCV_LP1", "LOOCV2_LP1", "5-Fold CV"),
+       col = c("blue", "red", "darkgreen"), lty = 1, pch = c(1, 17, 19))
+```
+Similar risk curves are obtained although we see slight differences in LOO risk and in optimal bandwidth values.
+```{r, eval=TRUE}
+# Runtime comparison
+# Measure time for LOOCV_LP1
+times_loocv1 <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+# Measure time for LOOCV2_LP1
+times_loocv2 <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(LOOCV2_LP1(X, Y, optimal_bw_L1))["elapsed"]
+})
+
+# Measure time for K fold
+times_kfold <- sapply(n_values, function(n) {
+  X <- 1:n / n
+  Y <- sim_Y(X)
+  system.time(KFoldCV_LP1(X, Y, optimal_bw_L1, K = 5))["elapsed"]
+})
+
+
+# Plot runtime comparison
+plot(n_values, times_loocv1, type = "b", col = "blue", lwd = 2,
+     xlab = "Sample size (n)", ylab = "Time (s)",
+     main = "Runtime: LOOCV vs K-Fold CV (LP1)")
+lines(n_values, times_loocv2, type = "b", col = "red", lwd = 2, pch = 17)
+lines(n_values, times_kfold, type = "b", col = "darkgreen", lwd = 2, pch = 19)
+
+legend("topleft", legend = c("LOOCV1_LP1", "LOOCV2_LP1", "5-Fold CV"),
+       col = c("blue", "red", "darkgreen"), lwd = 2, pch = c(1, 17, 19))
+
+
+```
+With the example of 5-fold cross-validation, we see that computation time is significantly shorter than with LOOCV2_LP1. This makes it a more practical method for selecting the optimal bandwidth in real-world contexts, where sample sizes can become much larger than those simulated here.
 :::
 
 # Appendix {#sec-appendix}
