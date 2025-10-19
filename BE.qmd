@@ -12,6 +12,9 @@ number-sections: true
 number-depth: 2
 editor_options: 
   chunk_output_type: console
+execute:
+  cache: true
+  freeze: auto
 ---
 ```{r, eval=TRUE}
 set.seed(42)
@@ -129,9 +132,9 @@ legend("bottom", lgd, col = 2:4, lty = 1)
 
 The bandwidth $h$ determines the width of the window around each point used to compute local averages or densities.
 
-- Small bandwidth : estimator is highly sensitive to data, capturing fine details but also noise. This leads to low bias and high variance.
+- Small bandwidth : estimator is highly sensitive to data, capturing fine details but also noise. This leads to low bias and high variance. This is the overfitting case.
 
-- Large bandwidth : estimator smooths over more data, reducing noise but potentially missing important structure. This leads to high bias and low variance.
+- Large bandwidth : estimator smooths over more data, reducing noise but potentially missing important structure. This leads to high bias and low variance. This is the underfitting case.
 
 This is the bias-variance tradeoff.
 
@@ -213,7 +216,7 @@ res <- LOOCV(X, Y, bandwidths)
 plot(bandwidths, res, t= 'b', ylab = "LOO Risk", xlab = "Bandwidth")
 ```
 :::
-Based on the graph above we see that the optimal bandwidth is $\approx 0.015$ because it is the value that minimizes LOO risk.
+Based on the graph above we see that the optimal bandwidth is $\approx 0.03$ because it is the value that minimizes LOO risk.
 
 
 ```{r, echo=FALSE}
@@ -288,7 +291,18 @@ times <- sapply(n_values, function(n) {
 })
 plot(n_values, times, t="b", xlab="Sample size (n)", ylab="Time (s)")
 ```
-The time complexity of the LOOCV function looks polynomial. We won't be able to tu use this estimator on large sample sizes. We are confronted here by the curse of dimensionality seen in class.
+The time complexity of the LOOCV function looks polynomial. We won't be able to tu use this estimator on large sample sizes. We are not confronted here to the curse of dimensionality seen in class (related to the statistical complexity), since we are rising the number of samples. But the time complexity is quadratic. 
+
+The time complexity of the LOOCV1 risk can be analytically obtained:
+
+$$
+LOOCV(h) = \frac{1}{n} \sum_{i=1}^n \left(Y_i - \hat{f}^{-i}_{h}(X_i) \right)^2
+\text{with } \hat{f}^{-i}_{h}(x) = \hat{f}^{NW}_{h, -i}(x) = \frac{\sum_{j=1, j\neq i}^n \left( Y_j K(\frac{X_j-x}{h}) \right)}{\sum_{j=1, j\neq i}^n \left( K(\frac{X_j-x}{h}) \right)}
+$$
+
+We can see that there is approximately $n^2$ operations. So the time complexity is $O(n^2)$.
+Depending on the computer, we were able to compute the risk with $n=2000$, but it was long.
+
 :::
 ## LOOCV, take 2
 
@@ -379,14 +393,20 @@ times_LOOCV2 <- sapply(n_values, function(n) {
 # Comparative plot
 plot(n_values, times_LOOCV, type = "l", col = "red", lwd = 2,
      xlab = "Sample size (n)", ylab = "Time (s)",
-     main = "Run time LOOCV vs LOOCV2")
+     main = "Run time LOOCV vs LOOCV2", 
+     ylim = range(times_LOOCV2)
+     )
 lines(n_values, times_LOOCV2, col = "blue", lwd = 2)
 legend("topleft", legend = c("LOOCV (locpoly)", "LOOCV2 (fast)"),
        col = c("red", "blue"), lwd = 2)
 ```
-:::
 Based on the previous question, we confirmed that the 2 implementations yield the same results. Therefore their time complexity can be compared.
-The time complexity of LOOCV2 is better than LOOCV1. Its time complexity looks linear compared to LOOCV1 making it more suitable for large values of $n$.
+
+The time complexity of LOOCV2 is better than LOOCV1. Its time complexity is obviously still quadratic like LOOCV1, but LOOCV2 has a better constant making it more suitable for computing large values of $n$.
+
+At $n=2000$, $LOOCV1$ takes about 2s, whereas $LOOCV2$ takes 0.1s.
+
+:::
 
 ## LOOCV, take 3
 
@@ -416,94 +436,37 @@ Using the definition of $LOOCV(h)$ (@eq-LOOCV), prove @eq-LOOCV-weights.
 
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
-
-We consider the Nadaraya-Watson estimator, which is a linear nonparametric estimator of the form:
-
-$$
-\hat{f}_h(x) = \sum_{i=1}^n Y_i W_{ni}(x, h),
-$$
-
-where the weights are defined by:
-
-$$
-W_{ni}(x, h) = \frac{K\left( \frac{X_i - x}{h} \right)}{\sum_{j=1}^n K\left( \frac{X_j - x}{h} \right)}.
-$$
-
-Let $\hat{f}_h^{-i}(X_i)$ be the leave-one-out estimator at point $X_i$, computed without the $i$-th observation. The goal is to prove that:
-
-$$
-LOOCV(h) = \frac{1}{n} \sum_{i=1}^n \left( \frac{Y_i - \hat{f}_h(X_i)}{1 - W_{ni}(X_i, h)} \right)^2.
-$$
-
-### Step 1: Express the full estimator
-
-The full estimator at $X_i$ is:
-
-$$
-\hat{f}_h(X_i) = \sum_{j=1}^n Y_j W_{nj}(X_i, h).
-$$
-
-### Step 2: Express the leave-one-out estimator
-
-The leave-one-out estimator excludes $Y_i$, so:
-
-$$
-\hat{f}_h^{-i}(X_i) = \sum_{j \ne i} Y_j \tilde{W}_{nj}^{-i}(X_i, h),
-$$
-
-where $\tilde{W}_{nj}^{-i}$ are the weights computed without the $i$-th observation.
-
-Let $S = \sum_{j=1}^n K\left( \frac{X_j - X_i}{h} \right)$, and define:
-
-$$
-W_{ni}(X_i, h) = \frac{K(0)}{S}.
-$$
-
-Then:
-
-$$
-\hat{f}_h(X_i) = \frac{K(0) Y_i + \sum_{j \ne i} K\left( \frac{X_j - X_i}{h} \right) Y_j}{S},
-$$
-
-and:
-
-$$
-\hat{f}_h^{-i}(X_i) = \frac{\sum_{j \ne i} K\left( \frac{X_j - X_i}{h} \right) Y_j}{S - K(0)}.
-$$
-
-### Step 3: Relate the two estimators
-
-Let $W_{ni} = W_{ni}(X_i, h) = \frac{K(0)}{S}$. Then:
-
-$$
-\hat{f}_h(X_i) = W_{ni} Y_i + (1 - W_{ni}) \hat{f}_h^{-i}(X_i).
-$$
-
-Solving for $\hat{f}_h^{-i}(X_i)$:
-
-$$
-\hat{f}_h^{-i}(X_i) = \frac{\hat{f}_h(X_i) - W_{ni} Y_i}{1 - W_{ni}}.
-$$
-
-### Step 4: Plug into LOOCV definition
-
-The leave-one-out risk is:
-
-$$
-LOOCV(h) = \frac{1}{n} \sum_{i=1}^n \left( Y_i - \hat{f}_h^{-i}(X_i) \right)^2.
-$$
-
-Substitute the expression for $\hat{f}_h^{-i}(X_i)$:
-
-$$
-Y_i - \hat{f}_h^{-i}(X_i) = \frac{Y_i - \hat{f}_h(X_i)}{1 - W_{ni}}.
-$$
-
-Therefore:
-
-$$
-LOOCV(h) = \frac{1}{n} \sum_{i=1}^n \left( \frac{Y_i - \hat{f}_h(X_i)}{1 - W_{ni}(X_i, h)} \right)^2.
-$$
+\noindent By definition, the leave-one-out (LOO) cross-validation risk is :
+\[
+LOOCV(h) = \frac{1}{n} \sum_{i=1}^n \left(Y_i - \hat{f}^{-i}_{h}(X_i) \right)^2
+\]
+Let's also define $\hat{f}^{-i}_h$ :
+\[\hat{f}^{-i}_{h}(x) = \sum^n_{j=1, j\neq i}Y_j W_{nj}(x,h) = \frac{\sum^n_{j=1, j\neq i}Y_j K(\frac{X_j-x}{h})}{\sum^n_{j=1, j\neq i} K(\frac{X_j-x}{h})}\]
+\[
+\hat{f}^{-i}_{h}(x) = \frac{\sum^n_{j=1}Y_j K(\frac{X_j-x}{h}) - Y_i K(\frac{X_i-x}{h})}{\sum^n_{j=1} K(\frac{X_j-x}{h}) - K(\frac{X_i-x}{h})}
+\]
+\noindent
+Let's note $S = \sum^n_{i=1}K(\frac{X_i-x}{h})$. Thus, we can write: 
+\[
+\hat{f}^{-i}_{h}(x) = \frac{S \cdot \hat{f}_{h}(x) - Y_i K(\frac{X_i-x}{h})}{S - K(\frac{X_i-x}{h})}
+\]
+\noindent From this points, if we isolate $\hat{f}_h$, we have:
+\[
+\hat{f}_h(x) = Y_i \cdot \frac{K(\frac{X_i - x}{h})}{S} + \hat{f}^{-i}_h(x)\cdot\frac{S-K(\frac{X_i - x}{h})}{S}
+\]
+\noindent But we can also write $\frac{K(\frac{X_i - x}{h})}{S}$ as $W_{ni}(x,h)$. So:
+\[
+\hat{f}_h(x) = Y_i \cdot W_{ni}(x,h) + \hat{f}^{-i}_h(x)\cdot(1-W_{ni}(x,h))
+\]
+\noindent Let's isolate $\hat{f}^{-i}_h$:
+\[
+\hat{f}^{-i}_h = \frac{\hat{f}_h - Y_i \cdot W_{ni}}{1-W_{ni}}
+\]
+\noindent We can now integrate this expression in the expression of the LOOCV risk:
+\[
+Y_i - \hat{f}^{-i}_{h}(X_i) = Y_i - \frac{\hat{f}_h(X_i) - Y_i \cdot W_{ni}(X_i,h)}{1-W_{ni}(X_i,h)} = \frac{Y_i - \hat{f}_h(X_i)}{1-W_{ni}(X_i,h)}
+\]
+\noindent This ends the proof.
 
 :::
 
@@ -617,8 +580,11 @@ lines(n_values, times_LOOCV3, col = "darkgreen", lwd = 2, type="b")
 legend("topleft", legend = c("LOOCV (locpoly)", "LOOCV2 (kernel)", "LOOCV3 (weights)"),
        col = c("red", "blue", "darkgreen"), lwd = 2)
 ```
+
+We observe that LOOCV3 is a bit better than LOOCV1 however, both appear to follow the same polynomial trend. 
+Analytically, the formula of the LOOCV3 indicates that its time complexity is still $O(n)$.
+It is clear from the plot that the LOOCV2 implementation performs best for large values of $n$.
 :::
-We observe that LOOCV3 is a bit better than LOOCV1 however, both appear to follow the same polynomial trend. It is clear from the plot that the LOOCV2 implementation performs best for large values of $n$.
 
 
 # Local polynomial estimators of order 1
@@ -743,53 +709,36 @@ QQ <- QQ + 1
 
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
-#### Proof of the LP1 Estimator Formula
 
-We aim to derive the expression for the local polynomial estimator of degree 1 (LP1) at a point $x$, using kernel-weighted least squares.
-
-We fit a local linear model of the form:
-
-$$
-f(z) \approx a_0 + a_1(z - x)
-$$
-
-by minimizing the weighted sum of squares:
-
-$$
-\sum_{i=1}^n \left( y_i - a_0 - a_1(x_i - x) \right)^2 K\left( \frac{x_i - x}{h} \right)
-$$
-
-This is a weighted least squares problem with design matrix:
-
-$$
-X = \begin{bmatrix}
-1 & x_1 - x \\
-1 & x_2 - x \\
-\vdots & \vdots \\
-1 & x_n - x
-\end{bmatrix}, \quad
-W = \text{diag}\left( K\left( \frac{x_1 - x}{h} \right), \dots, K\left( \frac{x_n - x}{h} \right) \right), \quad
-Y = \begin{bmatrix}
-y_1 \\ y_2 \\ \vdots \\ y_n
-\end{bmatrix}
-$$
-
-The weighted least squares solution is:
-
-$$
+Thanks to the class, we know that the local polynomial estimator of order $1$ of the regression with bandwidth $h$ associated to the kernel $K$ is the first coordinate of $\hat{\theta}_n$, with $\hat{\theta}_n$ such that:
+\[
+\hat{\theta}_n(x) = arg \min_{\theta \in \mathbb{R}^2} \sum^n_{i=1}\left( Y_i -  \theta^\top \Pi_1(\frac{X_i -x}{h})\right)^2 K\left(\frac{X_i-x}{h}\right)
+\]
+\noindent with $\Pi_1(x) = a_0 + a_1\cdot x$. And we can redefine this problem as a weighted least square problem with the solution:
+\[
 \hat{\beta} = (X^\top W X)^{-1} X^\top W Y
-$$
+\]
 
-Let us define the following weighted sums:
+\noindent with:
+\[
+X = 
+\begin{bmatrix}
+    1 & \frac{X_1 - x}{h} \\
+    1 & \frac{X_2 - x}{h}\\
+    \vdots & \vdots \\
+    1 & \frac{X_n - x}{h}
+\end{bmatrix}
+\]
+\[
+W = \text{diag}\left( K\left( \frac{X_1 - x}{h} \right), \dots, K\left( \frac{X_n - x}{h} \right) \right)
+\]
+\[
+Y = \left[Y_1, Y_2, \dots, Y_n \right]^\top
+\]
 
-$$
-S_k(x) = \sum_{i=1}^n (x_i - x)^k K\left( \frac{x_i - x}{h} \right), \quad
-S_k'(x) = \sum_{i=1}^n (x_i - x)^k y_i K\left( \frac{x_i - x}{h} \right)
-$$
+\noindent Now, thanks to the definitions of $S_k$ for $k \in [0,1,2]$, we have:
 
-Then:
-
-$$
+\[
 X^\top W X =
 \begin{bmatrix}
 S_0(x) & S_1(x) \\
@@ -800,22 +749,22 @@ X^\top W Y =
 S_0'(x) \\
 S_1'(x)
 \end{bmatrix}
-$$
+\]
+\noindent We can inverse this 2x2 matrix:
 
-Using the formula for the inverse of a $2 \times 2$ matrix:
-
-$$
+\[
 (X^\top W X)^{-1} =
 \frac{1}{S_0(x)S_2(x) - S_1(x)^2}
 \begin{bmatrix}
 S_2(x) & -S_1(x) \\
 -S_1(x) & S_0(x)
 \end{bmatrix}
-$$
+\]
 
-Multiplying out:
 
-$$
+\noindent Now, we inject into $\beta$:
+
+\[
 \hat{\beta} =
 \frac{1}{S_0 S_2 - S_1^2}
 \begin{bmatrix}
@@ -832,13 +781,15 @@ S_1'
 S_2 S_0' - S_1 S_1' \\
 \cdots
 \end{bmatrix}
-$$
+\]
 
-The LP1 estimator at $x$ is the intercept $\hat{f}^{LP1}(x) = \hat{\beta}_0$, so:
 
-$$
+And the LP1 estimator is the intercept $\hat{f}^{LP1}(x) = \hat{\beta}_0$, so:
+
+\[
 \hat{f}^{LP1}(x) = \frac{S_2(x) S_0'(x) - S_1(x) S_1'(x)}{S_2(x) S_0(x) - S_1(x)^2}
-$$
+\]
+
 :::
 
 ::: {.callout-important collapse="false"}
@@ -964,7 +915,6 @@ Explain why the above code does indeed calculate the weights $W$.
   
 ::: {.callout-note collapse="false"}
 ### Answer `r QQ`
-:::
 The function `getW` computes the weight matrix $W = (W_{ni}(X_j))_{i,j}$ for the local polynomial estimator by exploiting its linearity in the response vector $Y$.
 
 Since local polynomial estimators are linear nonparametric estimators, the fitted value at point $X_j$ can be written as:
@@ -983,6 +933,7 @@ In the code:
 - By repeating this for all $i$, we fill the matrix $W$ row by row.
 
 Thus, `W[ii, j]` stores the weight assigned to $y_{ii}$ when estimating $\hat{f}(X_j)$, which matches the definition of $W_{ni}(X_j)$.
+:::
 
 
 ```{r, echo=FALSE}
